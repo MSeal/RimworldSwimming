@@ -4,23 +4,23 @@
     <author>Pyrce</author>
     <url>https://github.com/MSeal/RimworldSwimming</url>
     <targetVersion>0.19.2009</targetVersion>
-    <description>[B19] SwimmingKit
+    <description>[h1][B19] SwimmingKit[/h1]
 
 A RimWorld mod which adds swimming attribute for pawns to change speeds while in water tiles.
 
-Description:
+[h1]Description[/h1]
 
 The mod acts as a toolkit for adding swimming statistics to the game. It makes pawns respect a new SwimSpeed baseStat for both moving through water and for planning pathing through water.
 
 In working on another mod it took the better part of a long weekend to get all the various places that needed changing correct, so to save other modders time and to enable adding actual aquatic gear / pawns I put the changes together in this mod.
 
 
-*Change in Terrain:*
+[b]Change in Terrain[/b]
 
 This mod makes Ocean and DeepWater tiles accessible. Normal pawns will move very very slow through ocean, but it is possible for pawns and items to now be in Ocean. If a pawn has SwimSpeed it will travel much quicker through ocean tiles.
 
 
-How to Use:
+[h1]How to Use[/h1]
 
 Adding the `SwimSpeed` to any `ThingDef`'s `statBases` will apply swim speed when in water tiles.
 
@@ -35,11 +35,10 @@ Adding the `SwimSpeed` to any `ThingDef`'s `statBases` will apply swim speed whe
     &lt;/statBases&gt;
 &lt;/ThingDef&gt;
 
-
 For more details please read the [url=https://github.com/MSeal/RimworldSwimming]Github SwimmingKit page[/url].
 
 
-Credits:
+[h1]Credits[/h1]
 
 [url=https://www.freeiconspng.com/img/3775]Icon Graphic Base[/url]
 [url=https://github.com/pardeike/Harmony]Powered by Harmony Patch Library[/url]

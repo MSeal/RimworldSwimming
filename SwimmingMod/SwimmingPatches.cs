@@ -20,6 +20,11 @@ namespace Swimming {
     static class MapExtensions {
         public static Dictionary<int, SwimmerPathFinder> PatherLookup = new Dictionary<int, SwimmerPathFinder>();
 
+        public static void ResetLookup()
+        {
+            PatherLookup = new Dictionary<int, SwimmerPathFinder>();
+        }
+
         public static SwimmerPathFinder SwimPather(this Map map)
         {
             if (!PatherLookup.TryGetValue(map.uniqueID, out SwimmerPathFinder pather))
@@ -28,6 +33,14 @@ namespace Swimming {
                 PatherLookup.Add(map.uniqueID, pather);
             }
             return pather;
+        }
+    }
+
+    [HarmonyPatch(typeof(Map), "FinalizeInit", new Type[0])]
+    internal static class Map_FinalizeInit_Patch {
+        private static void Postfix()
+        {
+            MapExtensions.ResetLookup();
         }
     }
 
