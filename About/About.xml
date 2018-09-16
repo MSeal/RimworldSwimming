@@ -24,6 +24,7 @@ This mod makes Ocean and DeepWater tiles accessible. Normal pawns will move very
 
 Adding the `SwimSpeed` to any `ThingDef`'s `statBases` will apply swim speed when in water tiles.
 
+[code]
 &lt;ThingDef ParentName=&quot;AnimalThingBase&quot; ADogSaidBody=&quot;Tail&quot;&gt;
     &lt;defName&gt;Turtle&lt;/defName&gt;
     &lt;label&gt;turtle&lt;/label&gt;
@@ -34,6 +35,7 @@ Adding the `SwimSpeed` to any `ThingDef`'s `statBases` will apply swim speed whe
         &lt;SwimSpeed&gt;4&lt;/SwimSpeed&gt;
     &lt;/statBases&gt;
 &lt;/ThingDef&gt;
+[/code]
 
 For more details please read the [url=https://github.com/MSeal/RimworldSwimming]Github SwimmingKit page[/url].
 
