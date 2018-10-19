@@ -1,6 +1,6 @@
 # RimworldSwimming
 
-![Version](https://img.shields.io/badge/Rimworld-B19-brightgreen.svg) on [Steam](https://steamcommunity.com/sharedfiles/filedetails/?id=1502915564)
+![Version](https://img.shields.io/badge/Rimworld-1.0-brightgreen.svg) on [Steam](https://steamcommunity.com/sharedfiles/filedetails/?id=1542399915)
 
 ![Alt text](About/Preview.png?raw=true "Swimming")
 
@@ -99,7 +99,7 @@ Adding your own patch can override these values via:
 
 Note that you shouldn't set this to 0 or it will fallback on compatability numbers based on normal `pathCost` settings.
 
-## Credits:
+## Credits
 
 [Icon Graphic Base](https://www.freeiconspng.com/img/3775)
 [Powered by Harmony Patch Library](https://github.com/pardeike/Harmony)
