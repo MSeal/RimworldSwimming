@@ -1,10 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>
-    <name>[1.0] SwimmingKit</name>
+    <name>SwimmingKit</name>
     <author>Pyrce</author>
     <url>https://github.com/MSeal/RimworldSwimming</url>
-    <targetVersion>1.0.2059</targetVersion>
-    <description>[h1][1.0] SwimmingKit[/h1]
+    <supportedVersions>
+      <li>1.0</li>
+      <li>1.1</li>
+    </supportedVersions>
+    <modDependencies>
+      <li>
+        <displayName>Harmony</displayName>
+        <packageId>brrainz.harmony</packageId>
+        <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+      </li>
+    </modDependencies>
+    <packageId>pyrce.swimming.modkit</packageId>
+    <description>[h1]SwimmingKit[/h1]
 
 A RimWorld mod which adds swimming attribute for pawns to change speeds while in water tiles.
 

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using Verse;
 using Verse.AI;
 using UnityEngine;
-using Harmony;
+using HarmonyLib;
 using System.Reflection;
 
 namespace Swimming {
@@ -12,7 +12,7 @@ namespace Swimming {
     public static class SwimmingLoader {
         static SwimmingLoader()
         {
-            var harmony = HarmonyInstance.Create("net.mseal.rimworld.mod.swimming");
+            var harmony = new Harmony("net.mseal.rimworld.mod.swimming");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
         }
     }

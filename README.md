@@ -1,6 +1,6 @@
 # RimworldSwimming
 
-![Version](https://img.shields.io/badge/Rimworld-1.0-brightgreen.svg) on [Steam](https://steamcommunity.com/sharedfiles/filedetails/?id=1542399915)
+![Version](https://img.shields.io/badge/Rimworld-1.1-brightgreen.svg) on [Steam](https://steamcommunity.com/sharedfiles/filedetails/?id=1542399915)
 
 ![Alt text](About/Preview.png?raw=true "Swimming")
 
@@ -60,7 +60,7 @@ You can also effect SwimSpeed by modifying equipment.
 
 In order to add swimming a bunch of core functions had to be rewritten. This means that anything which modifies pathing search and terrain cost functions might conflict, but I'm not aware of any mods which do conflict.
 
-##Change in Terrain:
+## Change in Terrain:
 
 This mod makes Ocean and DeepWater tiles accessible. Normal pawns will move very very slow through ocean, but it is possible for pawns and items to now be in Ocean. If a pawn has SwimSpeed it will travel much quicker through ocean tiles.
 
