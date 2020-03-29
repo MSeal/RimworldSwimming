@@ -1,11 +1,14 @@
-﻿using RimWorld;
-using System;
+﻿using System;
+using System.Xml;
+using System.Collections;
 using System.Collections.Generic;
+using RimWorld;
 using Verse;
 using Verse.AI;
 using UnityEngine;
 using HarmonyLib;
 using System.Reflection;
+
 
 namespace Swimming {
     [StaticConstructorOnStartup]
@@ -34,6 +37,21 @@ namespace Swimming {
             }
             return pather;
         }
+
+        public static bool UnreachableAquaticCheck(this Map map, LocalTargetInfo target, Pawn pawn)
+        {
+            if (pawn != null)
+            {
+                float moveSpeed = pawn.GetStatValue(StatDefOf.MoveSpeed);
+                bool aquatic = moveSpeed < 0.0000001f;
+                bool destWater = target.Cell.GetTerrain(map).HasTag("Water");
+                if (!destWater && aquatic)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     [HarmonyPatch(typeof(Map), "FinalizeInit", new Type[0])]
@@ -53,6 +71,49 @@ namespace Swimming {
         }
     }
 
+    [HarmonyPatch(typeof(Pawn), "TicksPerMove", new Type[] { typeof(bool) })]
+    class PawnTicksPerMoveNoMoveCheck
+    {
+        static bool Prefix(ref int __result, Pawn __instance, bool diagonal)
+        {
+            if (__instance.GetStatValue(StatDefOf.MoveSpeed) < 0.0000001)
+            {
+                __result = 100000000;
+                return false;
+            }
+            return true;
+        }
+    }
+    
+    [HarmonyPatch(typeof(Reachability), "CanReach", new Type[] { typeof(IntVec3), typeof(LocalTargetInfo), typeof(PathEndMode), typeof(TraverseParms) })]
+    class CanReachMoveCheck
+    {
+
+        static bool Prefix(ref bool __result, Map ___map, IntVec3 start, LocalTargetInfo dest, PathEndMode peMode, TraverseParms traverseParams)
+        {
+            if (___map.UnreachableAquaticCheck(dest, traverseParams.pawn))
+            {
+                __result = false;
+                return false;
+            }
+            return true;
+        }
+    }
+
+    [HarmonyPatch(typeof(ReachabilityImmediate), "CanReachImmediate", new Type[] { typeof(IntVec3), typeof(LocalTargetInfo), typeof(Map), typeof(PathEndMode), typeof(Pawn) })]
+    class CanReachImmediateMoveCheck
+    {
+        static bool Prefix(ref bool __result, IntVec3 start, LocalTargetInfo target, Map map, PathEndMode peMode, Pawn pawn)
+        {
+            if (map.UnreachableAquaticCheck(target, pawn))
+            {
+                __result = false;
+                return false;
+            }
+            return true;
+        }
+    }
+
     [HarmonyPatch(typeof(Pawn_PathFollower), "CostToMoveIntoCell", new Type[] { typeof(IntVec3) })]
     class SwimmerFollowerPatch {
         public static int CostToMoveIntoCell(Pawn pawn, IntVec3 c)
@@ -68,10 +129,10 @@ namespace Swimming {
             }
             int gridCost = pawn.Map.pathGrid.CalculatedCostAt(c, false, pawn.Position);
             TerrainDef terrain = c.GetTerrain(pawn.Map);
-            StatDef swimDef = DefDatabase<StatDef>.GetNamed("SwimSpeed", false);
+            StatDef swimDef = DefDatabase<StatDef>.GetNamed("SwimSpeed", true);
             StatDef swimPathCostDef = DefDatabase<StatDef>.GetNamed("pathCostSwimming", false);
             int swimPathCost = (swimPathCostDef != null) ? (int)terrain.GetStatValueAbstract(swimPathCostDef) : 0;
-            float swimSpeed = (swimDef != null) ? pawn.GetStatValue(swimDef, true) : 0;
+            float swimSpeed = pawn.GetStatValue(swimDef, true);
             bool water = terrain.HasTag("Water");
             bool swimming = water && swimSpeed > 0;
             if (swimming)

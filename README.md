@@ -17,13 +17,13 @@ In working on another mod it took the better part of a long weekend to get all t
 Adding the `SwimSpeed` to any `ThingDef`'s `statBases` will apply swim speed when in water tiles.
 
 ```xml
-<ThingDef ParentName="AnimalThingBase" ADogSaidBody="Tail">
+<ThingDef ParentName="AnimalThingBase"">
     <defName>Turtle</defName>
     <label>turtle</label>
     <description>A tortoise that likes water</description>
     <statBases>
         <MoveSpeed>1</MoveSpeed>
-        <!-- This makes turtle have a base speed of 4 in water -->
+        <!-- This makes turtles have a base speed of 4 in water -->
         <SwimSpeed>4</SwimSpeed>
     </statBases>
 </ThingDef>
@@ -53,6 +53,23 @@ You can also effect SwimSpeed by modifying equipment.
         <MoveSpeed>-1.0</MoveSpeed>
         <SwimSpeed>3.5</SwimSpeed>
     </equippedStatOffsets>
+</ThingDef>
+```
+
+#### Aquatic Only
+
+Setting MoveSpeed to 0 will make something aquatic only, meaning it won't go on land.
+
+```xml
+<ThingDef ParentName="AnimalThingBase">
+    <defName>Shark</defName>
+    <label>shark</label>
+    <description>A shark that can only go in water</description>
+    <statBases>
+        <!-- This makes sharks stay in the water -->
+        <MoveSpeed>0</MoveSpeed>
+        <SwimSpeed>4</SwimSpeed>
+    </statBases>
 </ThingDef>
 ```
 
