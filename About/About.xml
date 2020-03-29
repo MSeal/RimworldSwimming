@@ -68,12 +68,12 @@ Setting MoveSpeed to 0 will make something aquatic only, meaning it won't go on 
     &lt;/ThingDef&gt;
 [/code]
 
-      For more details please read the [url=https://github.com/MSeal/RimworldSwimming]Github SwimmingKit page[/url].
+For more details please read the [url=https://github.com/MSeal/RimworldSwimming]Github SwimmingKit page[/url].
 
 
-      [h1]Credits[/h1]
+[h1]Credits[/h1]
 
-      [url=https://www.freeiconspng.com/img/3775]Icon Graphic Base[/url]
-      [url=https://github.com/pardeike/Harmony]Powered by Harmony Patch Library[/url]
+[url=https://www.freeiconspng.com/img/3775]Icon Graphic Base[/url]
+[url=https://github.com/pardeike/Harmony]Powered by Harmony Patch Library[/url]
     </description>
 </ModMetaData>
