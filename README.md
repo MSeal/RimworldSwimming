@@ -58,7 +58,7 @@ You can also effect SwimSpeed by modifying equipment.
 
 #### Aquatic Only
 
-Setting MoveSpeed to 0 will make something aquatic only, meaning it won't go on land.
+Setting aquatic in the Swimming.AquaticExtension will make something aquatic only, meaning it won't go on land.
 
 ```xml
 <ThingDef ParentName="AnimalThingBase">
