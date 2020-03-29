@@ -66,10 +66,15 @@ Setting MoveSpeed to 0 will make something aquatic only, meaning it won't go on 
     <label>shark</label>
     <description>A shark that can only go in water</description>
     <statBases>
-        <!-- This makes sharks stay in the water -->
-        <MoveSpeed>0</MoveSpeed>
+        <MoveSpeed>0.15</MoveSpeed>
         <SwimSpeed>4</SwimSpeed>
     </statBases>
+    <modExtensions>
+        <!-- This makes sharks stay in the water -->
+        <li Class="Swimming.AquaticExtension">
+            <aquatic>true</aquatic>
+        </li>
+    </modExtensions>
 </ThingDef>
 ```
 

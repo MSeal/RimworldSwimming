@@ -53,7 +53,7 @@ Adding the `SwimSpeed` to any `ThingDef`'s `statBases` will apply swim speed whe
 &lt;/ThingDef&gt;
 [/code]
 
-Setting MoveSpeed to 0 will make something aquatic only, meaning it won't go on land.
+Setting aquatic in the Swimming.AquaticExtension will make something aquatic only, meaning it won't go on land.
 
 [code]
     &lt;ThingDef ParentName=&quot;AnimalThingBase&quot;&gt;
@@ -65,6 +65,12 @@ Setting MoveSpeed to 0 will make something aquatic only, meaning it won't go on 
     &lt;MoveSpeed&gt;0&lt;/MoveSpeed&gt;
     &lt;SwimSpeed&gt;4&lt;/SwimSpeed&gt;
     &lt;/statBases&gt;
+     &lt;modExtensions&gt;
+       &lt;!-- This makes sharks stay in the water --&gt;
+       &lt;li Class="Swimming.AquaticExtension"&gt;
+         &lt;aquatic&gt;true &lt;/aquatic&gt;
+       &lt;/li&gt;
+     &lt;/modExtensions&gt;
     &lt;/ThingDef&gt;
 [/code]
 

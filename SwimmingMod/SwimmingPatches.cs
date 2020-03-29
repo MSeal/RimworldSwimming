@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Xml;
-using System.Collections;
 using System.Collections.Generic;
 using RimWorld;
 using Verse;
@@ -13,11 +11,85 @@ using System.Reflection;
 namespace Swimming {
     [StaticConstructorOnStartup]
     public static class SwimmingLoader {
+        public const String HarmonyId = "net.mseal.rimworld.mod.swimming";
+        public const String DeepWaterTag = "DeepWater";
+        public const float DefaultWaterSwimCost = 15;
+        public static readonly IEnumerable<string> DeepWaterTiles = new HashSet<string> {
+            "WaterDeep", "WaterOceanDeep"
+        };
+        public static readonly IEnumerable<string> WaterTiles = new HashSet<string> {
+            "WaterDeep", "WaterOceanDeep", "WaterMovingChestDeep", "WaterShallow", "WaterOceanShallow", "WaterMovingShallow", "Marsh"
+        };
+        public static readonly Dictionary<string, float> WaterSwimCost = new Dictionary<string, float> {
+            { "WaterDeep", 5 },
+            { "WaterOceanDeep", 10 },
+            { "WaterMovingChestDeep", 8 },
+            { "WaterShallow", 15 },
+            { "WaterOceanShallow", 15 },
+            { "WaterMovingShallow", 15 },
+            { "Marsh", 30 }
+        };
+
         static SwimmingLoader()
         {
-            var harmony = new Harmony("net.mseal.rimworld.mod.swimming");
-            harmony.PatchAll(Assembly.GetExecutingAssembly());
+            if (!Harmony.HasAnyPatches(HarmonyId))
+            {
+                PatchWater();
+                var harmony = new Harmony(HarmonyId);
+                harmony.PatchAll(Assembly.GetExecutingAssembly());
+            }
         }
+
+        public static void PatchPathCostSwimming(String waterName)
+        {
+            TerrainDef water = TerrainDef.Named(waterName);
+            StatModifier pathCost = new StatModifier
+            {
+                stat = StatDef.Named("pathCostSwimming"),
+                value = WaterSwimCost.TryGetValue(waterName, DefaultWaterSwimCost)
+            };
+            if (water != null)
+            {
+                bool appliedChange = false;
+                if (water.statBases == null)
+                {
+                    water.statBases = new List<StatModifier>();
+                }
+                foreach (StatModifier statBase in water.statBases)
+                {
+                    if (statBase.stat == pathCost.stat)
+                    {
+                        appliedChange = true;
+                    }
+                }
+                if (!appliedChange)
+                {
+                    water.statBases.Add(pathCost);
+                    Log.Message(String.Format("[SwimmingKit] Applied swimming cost to '{0}' of value {1}", waterName, pathCost.value));
+                }
+            } else
+            {
+                Log.Warning(String.Format("[SwimmingKit] Attempted to apply swimming speed to '{0}' tile type that was not found", waterName));
+            }
+        }
+        public static void PatchWater()
+        {
+            foreach (String waterName in DeepWaterTiles)
+            {
+                var water = TerrainDef.Named(waterName);
+                water.passability = Traversability.Standable;
+                water.tags.Add(DeepWaterTag);
+            }
+            foreach (String waterName in WaterTiles)
+            {
+                PatchPathCostSwimming(waterName);
+            }
+        }
+    }
+
+    public class AquaticExtension : DefModExtension
+    {
+        public bool aquatic = false;
     }
 
     static class MapExtensions {
@@ -42,8 +114,7 @@ namespace Swimming {
         {
             if (pawn != null)
             {
-                float moveSpeed = pawn.GetStatValue(StatDefOf.MoveSpeed);
-                bool aquatic = moveSpeed < 0.0000001f;
+                bool aquatic = pawn.def.HasModExtension<AquaticExtension>() && pawn.def.GetModExtension<AquaticExtension>().aquatic;
                 bool destWater = target.Cell.GetTerrain(map).HasTag("Water");
                 if (!destWater && aquatic)
                 {
