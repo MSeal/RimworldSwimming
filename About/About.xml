@@ -18,7 +18,11 @@
       <li>Ludeon.RimWorld</li>
       <li>Ludeon.RimWorld.Royalty</li>
       <li>brrainz.harmony</li>
+      <li>pyrce.terrain.movement.modkit</li>
     </loadAfter>
+    <loadBefore>
+      <li>BiomesTeam.BiomesCore</li>
+    </loadBefore>
     <packageId>pyrce.swimming.modkit</packageId>
     <description>[h1]SwimmingKit[/h1]
 

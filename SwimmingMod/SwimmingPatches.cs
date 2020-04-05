@@ -2,21 +2,48 @@
 using System.Collections.Generic;
 using RimWorld;
 using Verse;
-using Verse.AI;
-using UnityEngine;
 using HarmonyLib;
 using System.Reflection;
-
+using TerrainMovement;
+using System.IO;
+using System.Linq;
 
 namespace Swimming {
-    [StaticConstructorOnStartup]
-    public static class SwimmingLoader {
+    public sealed class SwimmingMod : Mod
+    {
         public const String HarmonyId = "net.mseal.rimworld.mod.swimming";
-        public const String DeepWaterTag = "DeepWater";
+
+        public SwimmingMod(ModContentPack content) : base(content)
+        {
+            Assembly localAssembly = Assembly.GetExecutingAssembly();
+            string DLLName = localAssembly.GetName().Name;
+            Version loadedVersion = localAssembly.GetName().Version;
+            Version laterVersion = loadedVersion;
+
+            List<ModContentPack> runningModsListForReading = LoadedModManager.RunningModsListForReading;
+            foreach (ModContentPack mod in runningModsListForReading)
+            {
+                foreach (FileInfo item in from f in ModContentPack.GetAllFilesForMod(mod, "Assemblies/", (string e) => e.ToLower() == ".dll") select f.Value)
+                {
+                    var newAssemblyName = AssemblyName.GetAssemblyName(item.FullName);
+                    if (newAssemblyName.Name == DLLName && newAssemblyName.Version > laterVersion)
+                    {
+                        laterVersion = newAssemblyName.Version;
+                        Log.Error(String.Format("{0} load order error detected. {1} is loading an older version {2} before {3} loads version {4}. Please put the {5}, or BiomesCore mods above this one if they are active.",
+                            DLLName, content.Name, loadedVersion, mod.Name, laterVersion, DLLName));
+                    }
+                }
+            }
+
+            var harmony = new Harmony(HarmonyId);
+            harmony.PatchAll(localAssembly);
+        }
+    }
+
+    [StaticConstructorOnStartup]
+    public static class SwimmingLoader
+    {
         public const float DefaultWaterSwimCost = 15;
-        public static readonly IEnumerable<string> DeepWaterTiles = new HashSet<string> {
-            "WaterDeep", "WaterOceanDeep"
-        };
         public static readonly IEnumerable<string> WaterTiles = new HashSet<string> {
             "WaterDeep", "WaterOceanDeep", "WaterMovingChestDeep", "WaterShallow", "WaterOceanShallow", "WaterMovingShallow", "Marsh"
         };
@@ -29,60 +56,130 @@ namespace Swimming {
             { "WaterMovingShallow", 15 },
             { "Marsh", 30 }
         };
+        public static TerrainMovementStatDef WaterTerrainModExt = new TerrainMovementStatDef();
+        public static TerrainMovementTerrainRestrictions DeepWaterTerrainRestrictionModeExt = new TerrainMovementTerrainRestrictions();
 
         static SwimmingLoader()
         {
-            if (!Harmony.HasAnyPatches(HarmonyId))
+            // Set our extension defaults (they can't have constructors)
+            WaterTerrainModExt.terrainPathCostStat = "pathCostSwimming";
+            WaterTerrainModExt.pawnSpeedStat = "SwimSpeed";
+            DeepWaterTerrainRestrictionModeExt.disallowedPathCostStat = "pathCost";
+            PatchWater();
+        }
+
+        public static void PatchDeepWaterRestrictions(TerrainDef water)
+        {
+            if (water.passability == Traversability.Impassable)
             {
-                PatchWater();
-                var harmony = new Harmony(HarmonyId);
-                harmony.PatchAll(Assembly.GetExecutingAssembly());
+                water.passability = Traversability.Standable;
+                if (water.tags == null)
+                {
+                    water.tags = new List<string>();
+                }
+                if (!water.tags.Contains("DeepWater"))
+                {
+                    // Helpful for assigning rules to deep water in extensions of the kit
+                    water.tags.Add("DeepWater");
+                }
+
+                bool foundExtension = false;
+                if (water.modExtensions == null)
+                {
+                    water.modExtensions = new List<DefModExtension>();
+                }
+                foreach (DefModExtension ext in water.modExtensions)
+                {
+                    if (ext is TerrainMovementTerrainRestrictions)
+                    {
+                        TerrainMovementTerrainRestrictions restriction = ext as TerrainMovementTerrainRestrictions;
+                        if (restriction.disallowedPathCostStat == null || restriction.disallowedPathCostStat == "pathCost")
+                        {
+                            foundExtension = true;
+                        }
+                    }
+                }
+                if (!foundExtension)
+                {
+                    water.modExtensions.Add(DeepWaterTerrainRestrictionModeExt);
+                    Log.Message(String.Format("[SwimmingKit] Added deep water terrain restriction mod ext to '{0}'", water.defName));
+                }
+                else
+                {
+                    Log.Message(String.Format("[SwimmingKit] Found existing deep water terrain restriction mod ext for '{0}'", water.defName));
+                }
             }
         }
 
-        public static void PatchPathCostSwimming(String waterName)
+        public static void PatchPathCostSwimming(TerrainDef water)
         {
-            TerrainDef water = TerrainDef.Named(waterName);
+            bool foundStat = false;
             StatModifier pathCost = new StatModifier
             {
-                stat = StatDef.Named("pathCostSwimming"),
-                value = WaterSwimCost.TryGetValue(waterName, DefaultWaterSwimCost)
+                stat = StatDef.Named(WaterTerrainModExt.terrainPathCostStat),
+                value = WaterSwimCost.TryGetValue(water.defName, DefaultWaterSwimCost)
             };
-            if (water != null)
+            if (water.statBases == null)
             {
-                bool appliedChange = false;
-                if (water.statBases == null)
-                {
-                    water.statBases = new List<StatModifier>();
-                }
-                foreach (StatModifier statBase in water.statBases)
-                {
-                    if (statBase.stat == pathCost.stat)
-                    {
-                        appliedChange = true;
-                    }
-                }
-                if (!appliedChange)
-                {
-                    water.statBases.Add(pathCost);
-                    Log.Message(String.Format("[SwimmingKit] Applied swimming cost to '{0}' of value {1}", waterName, pathCost.value));
-                }
-            } else
+                water.statBases = new List<StatModifier>();
+            }
+            foreach (StatModifier statBase in water.statBases)
             {
-                Log.Warning(String.Format("[SwimmingKit] Attempted to apply swimming speed to '{0}' tile type that was not found", waterName));
+                if (statBase.stat == pathCost.stat)
+                {
+                    foundStat = true;
+                }
+            }
+            if (!foundStat)
+            {
+                water.statBases.Add(pathCost);
+                Log.Message(String.Format("[SwimmingKit] Applied swimming cost to '{0}' of value {1}", water.defName, pathCost.value));
+            }
+            else
+            {
+                Log.Message(String.Format("[SwimmingKit] Found swimming cost for '{0}' with a value of {1}", water.defName, pathCost.value));
             }
         }
+
+        public static void PatchTerrainMovementStatDefs(TerrainDef water)
+        {
+            bool foundExtension = false;
+            if (water.modExtensions == null)
+            {
+                water.modExtensions = new List<DefModExtension>();
+            }
+            foreach (DefModExtension ext in water.modExtensions)
+            {
+                if (ext is TerrainMovementStatDef)
+                {
+                    TerrainMovementStatDef moveStatDef = ext as TerrainMovementStatDef;
+                    if (moveStatDef.pawnSpeedStat == "pathCostSwimming")
+                    {
+                        foundExtension = true;
+                    }
+                }
+            }
+            if (!foundExtension)
+            {
+                water.modExtensions.Add(WaterTerrainModExt);
+                Log.Message(String.Format("[SwimmingKit] Added default terrain mod ext to '{0}'", water.defName));
+            }
+            else
+            {
+                Log.Message(String.Format("[SwimmingKit] Found existing terrain mod ext for '{0}'", water.defName));
+            }
+        }
+
         public static void PatchWater()
         {
-            foreach (String waterName in DeepWaterTiles)
+            foreach (TerrainDef terrain in DefDatabase<TerrainDef>.AllDefs)
             {
-                var water = TerrainDef.Named(waterName);
-                water.passability = Traversability.Standable;
-                water.tags.Add(DeepWaterTag);
-            }
-            foreach (String waterName in WaterTiles)
-            {
-                PatchPathCostSwimming(waterName);
+                if (terrain.HasTag("Water"))
+                {
+                    PatchDeepWaterRestrictions(terrain);
+                    PatchPathCostSwimming(terrain);
+                    PatchTerrainMovementStatDefs(terrain);
+                }
             }
         }
     }
@@ -92,243 +189,21 @@ namespace Swimming {
         public bool aquatic = false;
     }
 
-    static class MapExtensions {
-        public static Dictionary<int, SwimmerPathFinder> PatherLookup = new Dictionary<int, SwimmerPathFinder>();
 
-        public static void ResetLookup()
-        {
-            PatherLookup = new Dictionary<int, SwimmerPathFinder>();
-        }
-
-        public static SwimmerPathFinder SwimPather(this Map map)
-        {
-            if (!PatherLookup.TryGetValue(map.uniqueID, out SwimmerPathFinder pather))
-            {
-                pather = new SwimmerPathFinder(map);
-                PatherLookup.Add(map.uniqueID, pather);
-            }
-            return pather;
-        }
-
-        public static bool UnreachableAquaticCheck(this Map map, LocalTargetInfo target, Pawn pawn)
-        {
-            if (pawn != null)
-            {
-                bool aquatic = pawn.def.HasModExtension<AquaticExtension>() && pawn.def.GetModExtension<AquaticExtension>().aquatic;
-                bool destWater = target.Cell.GetTerrain(map).HasTag("Water");
-                if (!destWater && aquatic)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-
-    [HarmonyPatch(typeof(Map), "FinalizeInit", new Type[0])]
-    internal static class Map_FinalizeInit_Patch {
-        private static void Postfix()
-        {
-            MapExtensions.ResetLookup();
-        }
-    }
-
-    [HarmonyPatch(typeof(PathFinder), "FindPath", new Type[] { typeof(IntVec3), typeof(LocalTargetInfo), typeof(TraverseParms), typeof(PathEndMode) })]
-    class SwimmerPathPatch {
-        static bool Prefix(ref PawnPath __result, Map ___map, IntVec3 start, LocalTargetInfo dest, TraverseParms traverseParms, PathEndMode peMode)
-        {
-            __result = ___map.SwimPather().FindPath(start, dest, traverseParms, peMode);
-            return false;
-        }
-    }
-
-    [HarmonyPatch(typeof(Pawn), "TicksPerMove", new Type[] { typeof(bool) })]
-    class PawnTicksPerMoveNoMoveCheck
+    [HarmonyPatch(typeof(PawnExtensions), "LoadTerrainMovementPawnRestrictionsExtension")]
+    class AquaticExtensionTranslator
     {
-        static bool Prefix(ref int __result, Pawn __instance, bool diagonal)
+        static bool Prefix(ref TerrainMovementPawnRestrictions __result, DefModExtension ext)
         {
-            if (__instance.GetStatValue(StatDefOf.MoveSpeed) < 0.0000001)
+            if (ext is AquaticExtension)
             {
-                __result = 100000000;
+                AquaticExtension aqext = ext as AquaticExtension;
+                TerrainMovementPawnRestrictions tmext = new TerrainMovementPawnRestrictions();
+                tmext.stayOnTerrainTag = "Water";
+                __result = tmext;
                 return false;
             }
             return true;
-        }
-    }
-    
-    [HarmonyPatch(typeof(Reachability), "CanReach", new Type[] { typeof(IntVec3), typeof(LocalTargetInfo), typeof(PathEndMode), typeof(TraverseParms) })]
-    class CanReachMoveCheck
-    {
-
-        static bool Prefix(ref bool __result, Map ___map, IntVec3 start, LocalTargetInfo dest, PathEndMode peMode, TraverseParms traverseParams)
-        {
-            if (___map.UnreachableAquaticCheck(dest, traverseParams.pawn))
-            {
-                __result = false;
-                return false;
-            }
-            return true;
-        }
-    }
-
-    [HarmonyPatch(typeof(ReachabilityImmediate), "CanReachImmediate", new Type[] { typeof(IntVec3), typeof(LocalTargetInfo), typeof(Map), typeof(PathEndMode), typeof(Pawn) })]
-    class CanReachImmediateMoveCheck
-    {
-        static bool Prefix(ref bool __result, IntVec3 start, LocalTargetInfo target, Map map, PathEndMode peMode, Pawn pawn)
-        {
-            if (map.UnreachableAquaticCheck(target, pawn))
-            {
-                __result = false;
-                return false;
-            }
-            return true;
-        }
-    }
-
-    [HarmonyPatch(typeof(Pawn_PathFollower), "CostToMoveIntoCell", new Type[] { typeof(IntVec3) })]
-    class SwimmerFollowerPatch {
-        public static int CostToMoveIntoCell(Pawn pawn, IntVec3 c)
-        {
-            int num;
-            if (c.x == pawn.Position.x || c.z == pawn.Position.z)
-            {
-                num = pawn.TerrainAwareTicksPerMoveCardinal(c);
-            }
-            else
-            {
-                num = pawn.TerrainAwareTicksPerMoveDiagonal(c);
-            }
-            int gridCost = pawn.Map.pathGrid.CalculatedCostAt(c, false, pawn.Position);
-            TerrainDef terrain = c.GetTerrain(pawn.Map);
-            StatDef swimDef = DefDatabase<StatDef>.GetNamed("SwimSpeed", true);
-            StatDef swimPathCostDef = DefDatabase<StatDef>.GetNamed("pathCostSwimming", false);
-            int swimPathCost = (swimPathCostDef != null) ? (int)terrain.GetStatValueAbstract(swimPathCostDef) : 0;
-            float swimSpeed = pawn.GetStatValue(swimDef, true);
-            bool water = terrain.HasTag("Water");
-            bool swimming = water && swimSpeed > 0;
-            if (swimming)
-            {
-                if (swimPathCost > 0)
-                {
-                    // Replace grid cost with swimming cost
-                    gridCost += swimPathCost - terrain.pathCost;
-                }
-                else
-                {
-                    // Reduce the path penalty for swimming by 10x
-                    gridCost -= (terrain.pathCost * 9) / 10;
-                }
-            }
-            num += gridCost;
-            Building edifice = c.GetEdifice(pawn.Map);
-            if (edifice != null)
-            {
-                num += (int)edifice.PathWalkCostFor(pawn);
-            }
-            if (num > 450)
-            {
-                num = 450;
-            }
-            if (pawn.CurJob != null)
-            {
-                Pawn locomotionUrgencySameAs = pawn.jobs.curDriver.locomotionUrgencySameAs;
-                if (locomotionUrgencySameAs != null && locomotionUrgencySameAs != pawn && locomotionUrgencySameAs.Spawned)
-                {
-                    int num2 = SwimmerFollowerPatch.CostToMoveIntoCell(locomotionUrgencySameAs, c);
-                    if (num < num2)
-                    {
-                        num = num2;
-                    }
-                }
-                else
-                {
-                    switch (pawn.jobs.curJob.locomotionUrgency)
-                    {
-                        case LocomotionUrgency.Amble:
-                            num *= 3;
-                            if (num < 60)
-                            {
-                                num = 60;
-                            }
-                            break;
-                        case LocomotionUrgency.Walk:
-                            num *= 2;
-                            if (num < 50)
-                            {
-                                num = 50;
-                            }
-                            break;
-                        case LocomotionUrgency.Jog:
-                            break;
-                        case LocomotionUrgency.Sprint:
-                            num = Mathf.RoundToInt((float)num * 0.75f);
-                            break;
-                    }
-                }
-            }
-            return Mathf.Max(num, 1);
-        }
-
-        static bool Prefix(ref int __result, Pawn ___pawn, IntVec3 c)
-        {
-            __result = CostToMoveIntoCell(___pawn, c);
-            return false;
-        }
-    }
-
-    static class PawnExtensions {
-        public static int TerrainAwareTicksPerMoveCardinal(this Pawn pawn, IntVec3 loc)
-        {
-            return pawn.TerrainAwareTicksPerMove(loc, false);
-        }
-
-        public static int TerrainAwareTicksPerMoveDiagonal(this Pawn pawn, IntVec3 loc)
-        {
-            return pawn.TerrainAwareTicksPerMove(loc, true);
-        }
-
-        public static int TerrainAwareTicksPerMove(this Pawn pawn, IntVec3 loc, bool diagonal)
-        {
-            float num;
-            TerrainDef terrain = pawn.Map.terrainGrid.TerrainAt(loc);
-            StatDef swimDef = DefDatabase<StatDef>.GetNamed("SwimSpeed", false);
-            float swimSpeed = (swimDef != null) ? pawn.GetStatValue(swimDef, true) : 0;
-            if (terrain.HasTag("Water") && swimSpeed > 0.000001)
-            {
-                num = swimSpeed;
-            }
-            else
-            {
-                num = pawn.GetStatValue(StatDefOf.MoveSpeed, true);
-            }
-            if (RestraintsUtility.InRestraints(pawn))
-            {
-                num *= 0.35f;
-            }
-            if (pawn.carryTracker != null && pawn.carryTracker.CarriedThing != null && pawn.carryTracker.CarriedThing.def.category == ThingCategory.Pawn)
-            {
-                num *= 0.6f;
-            }
-            float num2 = num / 60f;
-            float num3;
-            if (num2 == 0f)
-            {
-                num3 = 450f;
-            }
-            else
-            {
-                num3 = 1f / num2;
-                if (pawn.Spawned && !pawn.Map.roofGrid.Roofed(pawn.Position))
-                {
-                    num3 /= pawn.Map.weatherManager.CurMoveSpeedMultiplier;
-                }
-                if (diagonal)
-                {
-                    num3 *= 1.41421f;
-                }
-            }
-            int value = Mathf.RoundToInt(num3);
-            return Mathf.Clamp(value, 1, 450);
         }
     }
 }

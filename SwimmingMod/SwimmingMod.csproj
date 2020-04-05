@@ -38,6 +38,10 @@
       <HintPath>..\packages\Lib.Harmony.2.0.0.8\lib\net472\0Harmony.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="TerrainMovementKit">
+      <HintPath>..\v1.1\Assemblies\TerrainMovementKit.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Assembly-CSharp">
       <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
@@ -300,7 +304,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="SwimmingPatches.cs" />
-    <Compile Include="SwimmingPathFinder.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
