@@ -48,12 +48,12 @@ namespace Swimming {
             "WaterDeep", "WaterOceanDeep", "WaterMovingChestDeep", "WaterShallow", "WaterOceanShallow", "WaterMovingShallow", "Marsh"
         };
         public static readonly Dictionary<string, float> WaterSwimCost = new Dictionary<string, float> {
-            { "WaterDeep", 5 },
+            { "WaterDeep", 10 },
             { "WaterOceanDeep", 10 },
-            { "WaterMovingChestDeep", 8 },
+            { "WaterMovingChestDeep", 10 },
             { "WaterShallow", 15 },
             { "WaterOceanShallow", 15 },
-            { "WaterMovingShallow", 15 },
+            { "WaterMovingShallow", 20 },
             { "Marsh", 30 }
         };
         public static TerrainMovementStatDef WaterTerrainModExt = new TerrainMovementStatDef();
@@ -169,7 +169,6 @@ namespace Swimming {
                 Log.Message(String.Format("[SwimmingKit] Found existing terrain mod ext for '{0}'", water.defName));
             }
         }
-
         public static void PatchWater()
         {
             foreach (TerrainDef terrain in DefDatabase<TerrainDef>.AllDefs)
