@@ -189,7 +189,7 @@ namespace Swimming {
     }
 
 
-    [HarmonyPatch(typeof(PawnExtensions), "LoadTerrainMovementPawnRestrictionsExtension")]
+    [HarmonyPatch(typeof(PawnKindDefExtensions), "LoadTerrainMovementPawnRestrictionsExtension")]
     class AquaticExtensionTranslator
     {
         static bool Prefix(ref TerrainMovementPawnRestrictions __result, DefModExtension ext)
