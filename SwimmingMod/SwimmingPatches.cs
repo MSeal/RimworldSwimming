@@ -199,6 +199,7 @@ namespace Swimming {
                 AquaticExtension aqext = ext as AquaticExtension;
                 TerrainMovementPawnRestrictions tmext = new TerrainMovementPawnRestrictions();
                 tmext.stayOnTerrainTag = "Water";
+                tmext.defaultMovementAllowed = false;
                 __result = tmext;
                 return false;
             }
