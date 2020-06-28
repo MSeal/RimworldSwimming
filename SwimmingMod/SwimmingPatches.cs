@@ -44,6 +44,10 @@ namespace Swimming {
     public static class SwimmingLoader
     {
         public const float DefaultWaterSwimCost = 15;
+        public const string WaterTag = "Water";
+        public const string DeepWaterTag = "DeepWater";
+        public const string SaltWaterTag = "SaltWater";
+        public const string FreshWaterTag = "FreshWater";
         public static readonly IEnumerable<string> WaterTiles = new HashSet<string> {
             "WaterDeep", "WaterOceanDeep", "WaterMovingChestDeep", "WaterShallow", "WaterOceanShallow", "WaterMovingShallow", "Marsh"
         };
@@ -55,6 +59,9 @@ namespace Swimming {
             { "WaterOceanShallow", 15 },
             { "WaterMovingShallow", 20 },
             { "Marsh", 30 }
+        };
+        public static readonly HashSet<string> SaltWaterTerrain = new HashSet<string>() {
+            "WaterOceanShallow", "WaterOceanDeep"
         };
         public static TerrainMovementStatDef WaterTerrainModExt = new TerrainMovementStatDef();
         public static TerrainMovementTerrainRestrictions DeepWaterTerrainRestrictionModeExt = new TerrainMovementTerrainRestrictions();
@@ -77,10 +84,10 @@ namespace Swimming {
                 {
                     water.tags = new List<string>();
                 }
-                if (!water.tags.Contains("DeepWater"))
+                if (!water.tags.Contains(DeepWaterTag))
                 {
                     // Helpful for assigning rules to deep water in extensions of the kit
-                    water.tags.Add("DeepWater");
+                    water.tags.Add(DeepWaterTag);
                 }
 
                 bool foundExtension = false;
@@ -102,11 +109,37 @@ namespace Swimming {
                 if (!foundExtension)
                 {
                     water.modExtensions.Add(DeepWaterTerrainRestrictionModeExt);
-                    Log.Message(String.Format("[SwimmingKit] Added deep water terrain restriction mod ext to '{0}'", water.defName));
                 }
-                else
+            }
+        }
+
+        public static void PatchSaltWaterTag(TerrainDef water)
+        {
+            if (SaltWaterTerrain.Contains(water.defName))
+            {
+                if (water.tags == null)
                 {
-                    Log.Message(String.Format("[SwimmingKit] Found existing deep water terrain restriction mod ext for '{0}'", water.defName));
+                    water.tags = new List<string>();
+                }
+                if (!water.tags.Contains(FreshWaterTag) && !water.tags.Contains(SaltWaterTag))
+                {
+                    // Allows for constraining aquatic animals to fresh/salt water
+                    water.tags.Add(SaltWaterTag);
+                }
+            }
+        }
+        public static void PatchFreshWaterTag(TerrainDef water)
+        {
+            if (!SaltWaterTerrain.Contains(water.defName))
+            {
+                if (water.tags == null)
+                {
+                    water.tags = new List<string>();
+                }
+                if (!water.tags.Contains(FreshWaterTag) && !water.tags.Contains(SaltWaterTag))
+                {
+                    // Allows for constraining aquatic animals to fresh/salt water
+                    water.tags.Add(FreshWaterTag);
                 }
             }
         }
@@ -133,11 +166,6 @@ namespace Swimming {
             if (!foundStat)
             {
                 water.statBases.Add(pathCost);
-                Log.Message(String.Format("[SwimmingKit] Applied swimming cost to '{0}' of value {1}", water.defName, pathCost.value));
-            }
-            else
-            {
-                Log.Message(String.Format("[SwimmingKit] Found swimming cost for '{0}' with a value of {1}", water.defName, pathCost.value));
             }
         }
 
@@ -162,11 +190,6 @@ namespace Swimming {
             if (!foundExtension)
             {
                 water.modExtensions.Add(WaterTerrainModExt);
-                Log.Message(String.Format("[SwimmingKit] Added default terrain mod ext to '{0}'", water.defName));
-            }
-            else
-            {
-                Log.Message(String.Format("[SwimmingKit] Found existing terrain mod ext for '{0}'", water.defName));
             }
         }
         public static void PatchWater()
@@ -178,6 +201,8 @@ namespace Swimming {
                     PatchDeepWaterRestrictions(terrain);
                     PatchPathCostSwimming(terrain);
                     PatchTerrainMovementStatDefs(terrain);
+                    PatchFreshWaterTag(terrain);
+                    PatchSaltWaterTag(terrain);
                 }
             }
         }
@@ -185,7 +210,9 @@ namespace Swimming {
 
     public class AquaticExtension : DefModExtension
     {
-        public bool aquatic = false;
+        public bool aquatic = true;
+        public bool saltWaterOnly = false;
+        public bool freshWaterOnly = false;
     }
 
 
@@ -198,8 +225,16 @@ namespace Swimming {
             {
                 AquaticExtension aqext = ext as AquaticExtension;
                 TerrainMovementPawnRestrictions tmext = new TerrainMovementPawnRestrictions();
-                tmext.stayOnTerrainTag = "Water";
                 tmext.defaultMovementAllowed = false;
+                tmext.stayOnTerrainTag = SwimmingLoader.WaterTag;
+                if (aqext.saltWaterOnly)
+                {
+                    tmext.stayOffTerrainTag = SwimmingLoader.FreshWaterTag;
+                }
+                else if (aqext.freshWaterOnly)
+                {
+                    tmext.stayOffTerrainTag = SwimmingLoader.SaltWaterTag;
+                }
                 __result = tmext;
                 return false;
             }
