@@ -1,6 +1,6 @@
 # RimworldSwimming
 
-![Version](https://img.shields.io/badge/Rimworld-1.1-brightgreen.svg) on [Steam](https://steamcommunity.com/sharedfiles/filedetails/?id=1542399915)
+![Version](https://img.shields.io/badge/Rimworld-1.2-brightgreen.svg) on [Steam](https://steamcommunity.com/sharedfiles/filedetails/?id=1542399915)
 
 ![Alt text](About/Preview.png?raw=true "Swimming")
 
