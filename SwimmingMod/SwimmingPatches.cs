@@ -7,6 +7,7 @@ using System.Reflection;
 using TerrainMovement;
 using System.IO;
 using System.Linq;
+using Verse.AI;
 
 namespace Swimming {
     public sealed class SwimmingMod : Mod
@@ -398,7 +399,7 @@ namespace Swimming {
 
     // We must patch the wrapper in TMK, not the original method
     [HarmonyPatch(typeof(IncidentWorker_HerdMigration_Extensions), "TryFindStartAndEndCells")]
-    class DeepWaterNotPreferredForHeadMigrationStartAndEnd
+    class DeepWaterNotPreferredForHerdMigrationStartAndEnd
     {
         static bool Prefix()
         {
@@ -525,6 +526,31 @@ namespace Swimming {
         {
             // Make sure we undo the setting
             DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = false;
+        }
+    }
+
+    // We must patch the wrapper in TMK, not the original method
+    [HarmonyPatch(typeof(JobGiver_ExitMapBest), "TryFindGoodExitDest")]
+    class DeepWaterNotPreferredForTryFindGoodExitDest
+    {
+        static bool Prefix(ref bool __result, Pawn pawn, bool canDig, out IntVec3 spot)
+        {
+            spot = IntVec3.Invalid;
+            // Check if the animal involved prefers to swim over walk
+            if (pawn.GetStatValue(StatDefOf.MoveSpeed) >= pawn.GetStatValue(StatDef.Named(SwimmingLoader.SwimStat)) + 0.001)
+            {
+                ToggledDeepWaterWalkable.DeepWaterValid = false;
+                try
+                {
+                    TraverseMode mode = canDig ? TraverseMode.PassAllDestroyableThings : TraverseMode.ByPawn;
+                    __result = RCellFinder.TryFindBestExitSpot(pawn, out spot, mode);
+                }
+                finally
+                {
+                    ToggledDeepWaterWalkable.DeepWaterValid = true;
+                }
+            }
+            return !__result;
         }
     }
 }
