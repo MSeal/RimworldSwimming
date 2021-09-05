@@ -44,6 +44,7 @@ namespace Swimming {
     public static class SwimmingLoader
     {
         public const float DefaultWaterSwimCost = 15;
+        public const string SwimStat = "SwimSpeed";
         public const string WaterTag = "Water";
         public const string DeepWaterTag = "DeepWater";
         public const string SaltWaterTag = "SaltWater";
@@ -70,7 +71,7 @@ namespace Swimming {
         {
             // Set our extension defaults (they can't have constructors)
             WaterTerrainModExt.terrainPathCostStat = "pathCostSwimming";
-            WaterTerrainModExt.pawnSpeedStat = "SwimSpeed";
+            WaterTerrainModExt.pawnSpeedStat = SwimStat;
             DeepWaterTerrainRestrictionModeExt.disallowedPathCostStat = "pathCost";
             PatchWater();
         }
@@ -239,6 +240,291 @@ namespace Swimming {
                 return false;
             }
             return true;
+        }
+    }
+
+    [HarmonyPatch(typeof(GenGrid), "Walkable")]
+    class ToggledDeepWaterWalkable
+    {
+        // A hack to temporarily treat deep water edge tiles as walkable or not
+        public static bool DeepWaterValid = true;
+
+        static void Postfix(ref bool __result, IntVec3 c, Map map)
+        {
+            if (__result && !DeepWaterValid)
+            {
+                TerrainDef terrain = map.terrainGrid.TerrainAt(c);
+                if (terrain != null)
+                {
+                    __result = !terrain.HasTag(SwimmingLoader.DeepWaterTag);
+                }
+            }
+        }
+    }
+
+    /* For Raid WalkIn */
+    [HarmonyPatch(typeof(PawnsArrivalModeWorker_EdgeWalkIn), "TryResolveRaidSpawnCenter")]
+    class DeepWaterNotPreferredForWalkIn
+    {
+        // A hack to allow second entry to a prefixed method to call the original
+        static bool Entered = false;
+
+        static bool Prefix(ref bool __result, ref PawnsArrivalModeWorker_EdgeWalkIn __instance, IncidentParms parms)
+        {
+            if (Entered)
+            {
+                return true;
+            }
+            try
+            {
+                Entered = true;
+                // We need to make DeepWater look impassible for a moment
+                ToggledDeepWaterWalkable.DeepWaterValid = false;
+                __result = __instance.TryResolveRaidSpawnCenter(parms);
+            }
+            finally
+            {
+                ToggledDeepWaterWalkable.DeepWaterValid = true;
+                Entered = false;
+            }
+            return !__result;
+        }
+    }
+
+    /* For Raid GroupWalkIn & CaravanArrival */
+    [HarmonyPatch(typeof(RCellFinder), "TryFindRandomPawnEntryCell")]
+    class DeepWaterNotPreferredForTryFindRandomPawnEntryCell
+    {
+        // A hack to allow second entry to a prefixed method to call the original
+        static bool Entered = false;
+        public static bool PreferNonDeepWater = false;
+
+        static bool Prefix(ref bool __result, ref IntVec3 result, Map map, float roadChance, bool allowFogged, Predicate<IntVec3> extraValidator)
+        {
+            if (Entered || !PreferNonDeepWater)
+            {
+                return true;
+            }
+            try
+            {
+                Entered = true;
+                // We need to make DeepWater look impassible for a moment
+                ToggledDeepWaterWalkable.DeepWaterValid = false;
+                __result = RCellFinder.TryFindRandomPawnEntryCell(out result, map, roadChance, allowFogged, extraValidator);
+            }
+            finally
+            {
+                ToggledDeepWaterWalkable.DeepWaterValid = true;
+                Entered = false;
+            }
+            return !__result;
+        }
+    }
+
+    [HarmonyPatch(typeof(PawnsArrivalModeWorker_EdgeWalkInGroups), "Arrive")]
+    class DeepWaterNotPreferredForGroupWalkIn
+    {
+        static bool Prefix()
+        {
+            // Set downstream methods to toggle on preferences for avoiding deep water
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = true;
+            return true;
+        }
+
+        static void Postfix()
+        {
+            // Make sure we undo the setting
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(IncidentWorker_TraderCaravanArrival), "TryExecuteWorker")]
+    class DeepWaterNotPreferredForTraderCaravanArrival
+    {
+        static bool Prefix()
+        {
+            // Set downstream methods to toggle on preferences for avoiding deep water
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = true;
+            return true;
+        }
+
+        static void Postfix()
+        {
+            // Make sure we undo the setting
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(IncidentWorker_ManhunterPack), "TryExecuteWorker")]
+    class DeepWaterNotPreferredForManhunterPack
+    {
+        static bool Prefix(ref IncidentParms parms)
+        {
+            Map map = (Map)parms.target;
+            // Set downstream methods to toggle on preferences for avoiding deep water
+            PawnKindDef animalKind = parms.pawnKind;
+            if ((animalKind == null && !ManhunterPackIncidentUtility.TryFindManhunterAnimalKind(parms.points, map.Tile, out animalKind)) || ManhunterPackIncidentUtility.GetAnimalsCount(animalKind, parms.points) == 0)
+            {
+                return true;
+            }
+            // Set the animal manually since we need to know ahead of time to determine if it swims
+            parms.pawnKind = animalKind;
+            // Check if the animal involved prefers to swim over walk
+            if (animalKind.race.GetStatValueAbstract(StatDefOf.MoveSpeed) >= animalKind.race.GetStatValueAbstract(StatDef.Named(SwimmingLoader.SwimStat)) + 0.001)
+            {
+                DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = true;
+            }
+            return true;
+        }
+
+        static void Postfix()
+        {
+            // Make sure we undo the setting
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(IncidentWorker_HerdMigration), "TryFindAnimalKind")]
+    class HerdTrackTryFindAnimalKind
+    {
+        public static PawnKindDef LastGenAnimal;
+
+        static void Postfix(int tile, ref bool __result, ref PawnKindDef animalKind)
+        {
+            // Make sure we undo the setting
+            LastGenAnimal = animalKind;
+        }
+    }
+
+    // We must patch the wrapper in TMK, not the original method
+    [HarmonyPatch(typeof(IncidentWorker_HerdMigration_Extensions), "TryFindStartAndEndCells")]
+    class DeepWaterNotPreferredForHeadMigrationStartAndEnd
+    {
+        static bool Prefix()
+        {
+            // Set downstream methods to toggle on preferences for avoiding deep water
+            PawnKindDef animalKind = HerdTrackTryFindAnimalKind.LastGenAnimal;
+            // Check if the animal involved prefers to swim over walk
+            if (animalKind != null && animalKind.race.GetStatValueAbstract(StatDefOf.MoveSpeed) >= animalKind.race.GetStatValueAbstract(StatDef.Named(SwimmingLoader.SwimStat)) + 0.001)
+            {
+                DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = true;
+            }
+            return true;
+        }
+
+        static void Postfix()
+        {
+            // Make sure we undo the setting
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = false;
+        }
+    }
+
+    [HarmonyPatch()]
+    class DeepWaterNotPreferredForAlphabeavers
+    {
+        static MethodBase TargetMethod()
+        {
+            // This is required because the class is internal ...
+            var q = from t in Assembly.GetAssembly(typeof(Pawn)).GetTypes()
+                    where t.IsClass && t.Name == "IncidentWorker_Alphabeavers"
+                    select t;
+            foreach (var t in q)
+            {
+                return t.GetMethod("TryExecuteWorker", AccessTools.all);
+            }
+            return null;
+        }
+
+        static bool Prefix(ref IncidentParms parms)
+        {
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = true;
+            return true;
+        }
+
+        static void Postfix()
+        {
+            // Make sure we undo the setting
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(IncidentWorker_ThrumboPasses), "TryExecuteWorker")]
+    class DeepWaterNotPreferredForThrumbos
+    {
+        static bool Prefix(ref IncidentParms parms)
+        {
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = true;
+            return true;
+        }
+
+        static void Postfix()
+        {
+            // Make sure we undo the setting
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(IncidentWorker_TravelerGroup), "TryExecuteWorker")]
+    class DeepWaterNotPreferredForTravelerGroup
+    {
+        static bool Prefix(ref IncidentParms parms)
+        {
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = true;
+            return true;
+        }
+
+        static void Postfix()
+        {
+            // Make sure we undo the setting
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(IncidentWorker_VisitorGroup), "TryExecuteWorker")]
+    class DeepWaterNotPreferredForVisitorGroup
+    {
+        static bool Prefix(ref IncidentParms parms)
+        {
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = true;
+            return true;
+        }
+
+        static void Postfix()
+        {
+            // Make sure we undo the setting
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(IncidentWorker_WandererJoin), "TryExecuteWorker")]
+    class DeepWaterNotPreferredForWandererJoin
+    {
+        static bool Prefix(ref IncidentParms parms)
+        {
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = true;
+            return true;
+        }
+
+        static void Postfix()
+        {
+            // Make sure we undo the setting
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(IncidentWorker_WildManWandersIn), "TryExecuteWorker")]
+    class DeepWaterNotPreferredForWildMan
+    {
+        static bool Prefix(ref IncidentParms parms)
+        {
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = true;
+            return true;
+        }
+
+        static void Postfix()
+        {
+            // Make sure we undo the setting
+            DeepWaterNotPreferredForTryFindRandomPawnEntryCell.PreferNonDeepWater = false;
         }
     }
 }
