@@ -50,6 +50,7 @@ namespace Swimming {
         public const string DeepWaterTag = "DeepWater";
         public const string SaltWaterTag = "SaltWater";
         public const string FreshWaterTag = "FreshWater";
+        public const string BridgeTag = "Bridge";
         public static readonly IEnumerable<string> WaterTiles = new HashSet<string> {
             "WaterDeep", "WaterOceanDeep", "WaterMovingChestDeep", "WaterShallow", "WaterOceanShallow", "WaterMovingShallow", "Marsh"
         };
@@ -75,6 +76,8 @@ namespace Swimming {
             WaterTerrainModExt.pawnSpeedStat = SwimStat;
             DeepWaterTerrainRestrictionModeExt.disallowedPathCostStat = "pathCost";
             PatchWater();
+            // We need to run this after other loaders since bridges also intializes with StaticConstructorOnStartup
+            LongEventHandler.QueueLongEvent(() => PatchBridges(), null, false, null);
         }
 
         public static void PatchDeepWaterRestrictions(TerrainDef water)
@@ -130,6 +133,7 @@ namespace Swimming {
                 }
             }
         }
+
         public static void PatchFreshWaterTag(TerrainDef water)
         {
             if (!SaltWaterTerrain.Contains(water.defName))
@@ -143,6 +147,18 @@ namespace Swimming {
                     // Allows for constraining aquatic animals to fresh/salt water
                     water.tags.Add(FreshWaterTag);
                 }
+            }
+        }
+        public static void PatchBridgeTag(TerrainDef bridge)
+        {
+            if (bridge.tags == null)
+            {
+                bridge.tags = new List<string>();
+            }
+            if (!bridge.tags.Contains(BridgeTag))
+            {
+                // Prevents water animals from trying to enter ontop of a bridge
+                bridge.tags.Add(BridgeTag);
             }
         }
 
@@ -194,6 +210,7 @@ namespace Swimming {
                 water.modExtensions.Add(WaterTerrainModExt);
             }
         }
+
         public static void PatchWater()
         {
             foreach (TerrainDef terrain in DefDatabase<TerrainDef>.AllDefs)
@@ -208,6 +225,17 @@ namespace Swimming {
                 }
             }
         }
+
+        public static void PatchBridges()
+        {
+            foreach (TerrainDef terrain in DefDatabase<TerrainDef>.AllDefs)
+            {
+                if (terrain.defName.StartsWith("DeepWaterBridge") || terrain.defName.StartsWith("HeavyBridge") || terrain.defName.StartsWith("Bridge"))
+                {
+                    PatchBridgeTag(terrain);
+                }
+            }
+        }
     }
 
     public class AquaticExtension : DefModExtension
@@ -217,30 +245,47 @@ namespace Swimming {
         public bool freshWaterOnly = false;
     }
 
-
-    [HarmonyPatch(typeof(PawnKindDefExtensions), "LoadTerrainMovementPawnRestrictionsExtension")]
+    [HarmonyPatch(typeof(ThingDefExtensions), "MovementExtensions")]
     class AquaticExtensionTranslator
     {
-        static bool Prefix(ref TerrainMovementPawnRestrictions __result, DefModExtension ext)
+        static void Postfix(ref IEnumerable<TerrainMovementPawnRestrictions> __result, ThingDef race)
         {
-            if (ext is AquaticExtension)
+            List<TerrainMovementPawnRestrictions> newResults = new List<TerrainMovementPawnRestrictions>();
+            foreach(var ext in __result)
             {
-                AquaticExtension aqext = ext as AquaticExtension;
-                TerrainMovementPawnRestrictions tmext = new TerrainMovementPawnRestrictions();
-                tmext.defaultMovementAllowed = false;
-                tmext.stayOnTerrainTag = SwimmingLoader.WaterTag;
-                if (aqext.saltWaterOnly)
-                {
-                    tmext.stayOffTerrainTag = SwimmingLoader.FreshWaterTag;
-                }
-                else if (aqext.freshWaterOnly)
-                {
-                    tmext.stayOffTerrainTag = SwimmingLoader.SaltWaterTag;
-                }
-                __result = tmext;
-                return false;
+                newResults.Add(ext);
             }
-            return true;
+            var modExtensions = race.modExtensions;
+            if (modExtensions != null)
+            {
+                foreach (DefModExtension ext in modExtensions)
+                {
+                    if (ext is AquaticExtension)
+                    {
+                        // First water rules
+                        AquaticExtension aqext = ext as AquaticExtension;
+                        TerrainMovementPawnRestrictions tmext = new TerrainMovementPawnRestrictions();
+                        tmext.defaultMovementAllowed = false;
+                        tmext.stayOnTerrainTag = SwimmingLoader.WaterTag;
+                        if (aqext.saltWaterOnly)
+                        {
+                            tmext.stayOffTerrainTag = SwimmingLoader.FreshWaterTag;
+                        }
+                        else if (aqext.freshWaterOnly)
+                        {
+                            tmext.stayOffTerrainTag = SwimmingLoader.SaltWaterTag;
+                        }
+                        newResults.Add(tmext);
+
+                        // Second water rule to avoid bridges
+                        tmext = new TerrainMovementPawnRestrictions();
+                        tmext.defaultMovementAllowed = false;
+                        tmext.stayOffTerrainTag = SwimmingLoader.BridgeTag;
+                        newResults.Add(tmext);
+                    }
+                }
+            }
+            __result = newResults;
         }
     }
 
