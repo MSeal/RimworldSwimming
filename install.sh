@@ -8,7 +8,7 @@ cp -r 1.0 "${TARGET_DIR}"
 cp -r 1.1 "${TARGET_DIR}"
 cp -r 1.2 "${TARGET_DIR}"
 cp -r 1.3 "${TARGET_DIR}"
+cp -r 1.4 "${TARGET_DIR}"
 cp -r Defs "${TARGET_DIR}"
 cp -r Patches "${TARGET_DIR}"
 cp -r Languages "${TARGET_DIR}"
-

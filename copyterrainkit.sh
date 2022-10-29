@@ -1,2 +1,2 @@
 #!/bin/sh
-cp ../RimworldTerrainMovementKit/1.3/Assemblies/TerrainMovementKit.dll ./1.3/Assemblies/
+cp ../RimworldTerrainMovementKit/1.4/Assemblies/TerrainMovementKit.dll ./1.4/Assemblies/
